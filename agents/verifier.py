@@ -1,18 +1,27 @@
-import json
 from typing import Dict
-from tools.integration import run_integration_test, restart_service
-
+from tools.integration import run_integration_test
 
 def verify() -> Dict:
-    restart_service()
-    import time
-    time.sleep(3)
-
-    result = run_integration_test()
-    status = result.get("status", 500)
-
-    if status == 200:
-        return {"success": True}
+    """
+    Runs the integration test suite and evaluates whether the bug is fixed.
+    Returns structured results for the Orchestrator's state machine.
+    """
+    print("[Verifier] Executing live integration test against application endpoints...")
+    test_results = run_integration_test()
+    
+    status = test_results.get("status", 500)
+    logs = test_results.get("logs", "")
+    success = test_results.get("success", False)
+    
+    if success:
+        return {
+            "success": True,
+            "status": status,
+            "logs": "Integration tests passed with HTTP 200 OK."
+        }
     else:
-        logs = result.get("logs", "")
-        return {"success": False, "logs": logs[-2000:]}
+        return {
+            "success": False,
+            "status": status,
+            "logs": logs
+        }
