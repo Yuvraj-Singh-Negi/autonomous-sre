@@ -63,4 +63,4 @@ def investigate(target_file: str, stack_trace: str, history: Optional[List[Dict]
     else:
         prompt = f"""Analyze this stack trace and source code to identify the exact root cause of the bug.
 
-Stack trace (Tail end showing root cause):
+Stack trace (Tail end showing root cause):"""
