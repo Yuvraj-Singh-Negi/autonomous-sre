@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  buggy-service:
+    build: .
+    container_name: buggy-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('localhost',8000,timeout=3); c.request('GET','/health'); r=c.getresponse(); r.read(); exit(0 if r.status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  sre-monitor:
+    build: .
+    container_name: sre-monitor
+    volumes:
+      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-5.5}
+      - TARGET_URL=http://buggy-service:8000/crash
+    depends_on:
+      buggy-service:
+        condition: service_healthy
+    command: python monitor.py

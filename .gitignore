@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+service_stdout.log
+service_stderr.log
+*.backup
