@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict
+from typing import Dict, List, Optional
 
 
 def _call_llm(prompt: str) -> str:
@@ -10,18 +10,23 @@ def _call_llm(prompt: str) -> str:
     try:
         import openai
         client = openai.OpenAI(api_key=api_key)
-        model = os.getenv("OPENAI_MODEL", "gpt-5.5")
+        model = os.getenv("OPENAI_MODEL", "gpt-4o")
         response = client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
+            messages=[
+                {"role": "system", "content": "You are an expert SRE planner. Output only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1
         )
         return response.choices[0].message.content
-    except Exception:
+    except Exception as e:
+        print(f"[Planner API Error] {e}")
         return ""
 
 
-def plan(stack_trace: str) -> Dict:
+def plan(stack_trace: str, history: Optional[List[Dict]] = None) -> Dict:
     prompt = f"""Analyze this stack trace and identify the failing file, function, and line.
 
 Stack trace:
