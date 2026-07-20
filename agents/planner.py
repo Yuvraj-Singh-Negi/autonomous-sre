@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 def _call_llm(prompt: str) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        print("[Planner Warning] OPENAI_API_KEY not set, using heuristic fallback")
         return ""
     try:
         import openai

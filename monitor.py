@@ -3,36 +3,19 @@ import http.client
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
+from shutil import copyfile
 from orchestrator import run_pipeline
 
 
 TARGET_URL = "http://localhost:8000/crash"
 BUGGY_FILE = Path("app/buggy_service.py")
-
-# Original buggy code to auto-reset between demo runs
-_ORIGINAL_BUGGY_CODE = """\
-def process_data(data: dict) -> int:
-    \"\"\"Process input data and return computed result.
-    
-    Bug: Division by zero when data['count'] is 0.
-    \"\"\"
-    total = data.get("total", 0)
-    count = data.get("count", 0)
-    result = total / count  # Bug: division by zero when count is 0
-    return int(result)
-
-
-def validate_input(data: dict) -> bool:
-    \"\"\"Validate input data has required fields.\"\"\"
-    return "total" in data and "count" in data
-"""
+BUGGY_TEMPLATE = Path("app/buggy_original.py")
 
 HEALTHY_THRESHOLD = 5
 
 
 def _reset_bug():
-    """Restore the original buggy code for demo."""
-    BUGGY_FILE.write_text(_ORIGINAL_BUGGY_CODE)
+    copyfile(BUGGY_TEMPLATE, BUGGY_FILE)
     print("[Monitor] Buggy service reset to original buggy state")
 
 
@@ -45,16 +28,9 @@ def poll():
     print("[Monitor] Starting SRE monitor...")
     print(f"[Monitor] Polling {TARGET_URL}")
 
-    from tools.integration import _ensure_service_running, stop_service
+    from tools.integration import stop_service
 
-    # Reset bug for fresh demo
     _reset_bug()
-
-    # Ensure service is running (restart to pick up fresh buggy code)
-    if not _ensure_service_running():
-        print("[Monitor] Failed to start service")
-        return
-
     _restart_server()
 
     consecutive_healthy = 0
@@ -72,9 +48,9 @@ def poll():
             timestamp = datetime.now().isoformat()
             print(f"[Monitor] {timestamp} - Status: {status}")
 
-            if status == 500:
+            if status >= 500:
                 consecutive_healthy = 0
-                print(f"[Monitor] Detected 500 error!")
+                print(f"[Monitor] Detected {status} error!")
                 print(f"[Monitor] Running SRE pipeline...")
 
                 success = run_pipeline(body)

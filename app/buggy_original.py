@@ -1,8 +1,6 @@
 def process_data(data: dict) -> int:
     total = data.get("total", 0)
     count = data.get("count", 0)
-    if count == 0:
-        return 0
     result = total / count
     return int(result)
 

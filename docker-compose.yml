@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   buggy-service:
     build: .
@@ -25,8 +23,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-5.5}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
       - TARGET_URL=http://buggy-service:8000/crash
+      - SERVICE_URL=http://buggy-service:8000
     depends_on:
       buggy-service:
         condition: service_healthy

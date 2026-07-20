@@ -2,10 +2,8 @@ from agents.planner import plan
 from agents.detective import investigate
 from agents.engineer import fix as apply_fix
 from agents.verifier import verify
-from tools.integration import run_integration_test, restart_app_server, stop_service
-from tools.file_tools import read_file, rollback_file
-import time
-import json
+from tools.integration import restart_app_server
+from tools.file_tools import rollback_file
 
 MAX_RETRIES = 3
 
@@ -42,13 +40,12 @@ def run_pipeline(initial_trace: str) -> bool:
 
         # 2. RACE CONDITION FIX: Force server restart and wait for warm-up
         print("[Orchestrator] Restarting application server to apply patch...")
-        restart_app_server() 
-        time.sleep(3) # Give the container 3 seconds to bind to port
+        restart_app_server()
 
         # Verifier
         print("[Verifier] Running verification test suite...")
         verifier_result = verify()
-        
+
         if verifier_result.get("success"):
             print("[Verifier] Verification PASSED! Bug eradicated.")
             return True
@@ -59,7 +56,7 @@ def run_pipeline(initial_trace: str) -> bool:
 
             # 3. ROLLBACK: Revert the bad patch so the next attempt starts from clean state
             print(f"[Orchestrator] Rolling back failed patch on {target_file}...")
-            rollback_file(target_file, engineer_result.get("old_code"))
+            rollback_file(target_file)
             restart_app_server()
 
             # Record failure in memory
@@ -68,11 +65,10 @@ def run_pipeline(initial_trace: str) -> bool:
                 "attempted_code": engineer_result.get("new_code"),
                 "failure_reason": new_logs
             })
-            
+
             # Update trace to the latest error
             current_trace = new_logs or current_trace
             retry += 1
-            time.sleep(1)
 
     print("[Orchestrator] Max retries reached. System hard-failing to human alert.")
     return False

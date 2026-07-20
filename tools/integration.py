@@ -9,8 +9,10 @@ import socket
 from pathlib import Path
 from typing import Dict, Optional
 
-_SERVICE_URL = "http://localhost:8000"
+_SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:8000")
 _SERVICE_PROCESS: Optional[subprocess.Popen] = None
+_SERVICE_FOUT = None
+_SERVICE_FERR = None
 LOG_STDOUT = Path("service_stdout.log")
 LOG_STDERR = Path("service_stderr.log")
 
@@ -22,11 +24,9 @@ def _clear_logs():
 
 
 def _kill_process_group():
-    """Ruthlessly kills the Uvicorn process AND any orphan child worker threads."""
-    global _SERVICE_PROCESS
+    global _SERVICE_PROCESS, _SERVICE_FOUT, _SERVICE_FERR
     if _SERVICE_PROCESS:
         try:
-            # Kill the entire process group spawned by start_new_session=True
             if os.name == 'posix':
                 os.killpg(os.getpgid(_SERVICE_PROCESS.pid), signal.SIGKILL)
             else:
@@ -34,38 +34,44 @@ def _kill_process_group():
         except (OSError, ProcessLookupError):
             pass
         _SERVICE_PROCESS = None
+    for fh in [_SERVICE_FOUT, _SERVICE_FERR]:
+        if fh:
+            try:
+                fh.close()
+            except Exception:
+                pass
+    _SERVICE_FOUT = None
+    _SERVICE_FERR = None
 
 
 def _ensure_service_running() -> bool:
-    global _SERVICE_PROCESS
+    global _SERVICE_PROCESS, _SERVICE_FOUT, _SERVICE_FERR
     if _check_health():
         return True
 
-    _clear_logs() # Ensure clean slate for the new boot epoch
+    _clear_logs()
     try:
-        fout = open(LOG_STDOUT, "w", encoding="utf-8")
-        ferr = open(LOG_STDERR, "w", encoding="utf-8")
-        
+        _SERVICE_FOUT = open(LOG_STDOUT, "w", encoding="utf-8")
+        _SERVICE_FERR = open(LOG_STDERR, "w", encoding="utf-8")
+
         _SERVICE_PROCESS = subprocess.Popen(
             ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"],
             cwd=Path.cwd(),
-            stdout=fout,
-            stderr=ferr,
-            start_new_session=True # Creates dedicated process group
+            stdout=_SERVICE_FOUT,
+            stderr=_SERVICE_FERR,
+            start_new_session=True
         )
-        
-        # DYNAMIC POLLING: Don't waste 3 seconds! Poll every 0.2s until ready or timeout.
+
         deadline = time.time() + 5.0
         while time.time() < deadline:
             if _SERVICE_PROCESS.poll() is not None:
-                # Process crashed immediately on boot (e.g. syntax error in patched code!)
                 print("[Integration] Uvicorn process died prematurely on startup.")
                 return False
             if _check_health():
                 print("[Integration] Uvicorn server warmed up and ready!")
                 return True
             time.sleep(0.2)
-            
+
         return _check_health()
     except Exception as e:
         print(f"[Integration Error] Failed to launch Uvicorn: {e}")
@@ -86,16 +92,24 @@ def _check_health() -> bool:
 
 
 def _get_logs() -> str:
+    parts = []
     try:
         if LOG_STDERR.exists():
             content = LOG_STDERR.read_text(encoding="utf-8")
             if content.strip():
-                return content
-        if LOG_STDOUT.exists():
-            return LOG_STDOUT.read_text(encoding="utf-8")
-        return ""
+                parts.append("=== STDERR ===")
+                parts.append(content)
     except Exception:
-        return ""
+        pass
+    try:
+        if LOG_STDOUT.exists():
+            content = LOG_STDOUT.read_text(encoding="utf-8")
+            if content.strip():
+                parts.append("=== STDOUT ===")
+                parts.append(content)
+    except Exception:
+        pass
+    return "\n".join(parts)
 
 
 def run_integration_test() -> Dict:
@@ -135,19 +149,18 @@ def run_integration_test() -> Dict:
 
 
 def restart_app_server() -> bool:
-    """Hard-restarts the server to load newly patched files into memory."""
     print("[Integration] Stopping server for hot-reload...")
     _kill_process_group()
-    
-    # Wait for OS socket to free up completely
+
     deadline = time.time() + 5.0
     while time.time() < deadline:
         try:
             s = socket.create_connection(("localhost", 8000), timeout=0.5)
             s.close()
-            time.sleep(0.2) # Port still occupied, wait...
+            time.sleep(0.2)
         except (ConnectionRefusedError, OSError):
-            break # Port is free!
+            time.sleep(0.1)
+            break
 
     return _ensure_service_running()
 

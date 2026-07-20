@@ -4,4 +4,4 @@ __pycache__/
 .env
 service_stdout.log
 service_stderr.log
-*.backup
+*.bak

@@ -44,7 +44,7 @@ def fix(detective_report: Dict, history: Optional[List[Dict]] = None) -> Dict:
             history_context += f"Attempt {idx} Code Tried: `{attempt.get('attempted_code')}`\n"
             history_context += f"Why it Failed: {attempt.get('failure_reason')}\n---\n"
 
-    prompt_path = Path("prompts/engineer.txt")
+    prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "engineer.txt"
     if prompt_path.exists():
         prompt = prompt_path.read_text(encoding="utf-8")
         prompt = prompt.replace("{file}", filepath)

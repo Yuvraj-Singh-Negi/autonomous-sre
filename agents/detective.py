@@ -54,7 +54,7 @@ def investigate(target_file: str, stack_trace: str, history: Optional[List[Dict]
             history_context += f"Attempt {idx} Failed Patch: `{attempt.get('attempted_code')}`\n"
             history_context += f"Resulting Error: {attempt.get('failure_reason')}\n---\n"
 
-    prompt_path = Path("prompts/detective.txt")
+    prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "detective.txt"
     if prompt_path.exists():
         prompt_template = prompt_path.read_text(encoding="utf-8")
         prompt = prompt_template.replace("{stack_trace}", tail_trace)

@@ -1,24 +1,20 @@
-from fastapi import FastAPI, HTTPException, Request, Response
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from app.buggy_service import process_data, validate_input
 import traceback
+import logging
 
 app = FastAPI(title="Buggy Service", version="1.0.0")
-
-
-class CrashRequest(BaseModel):
-    total: int
-    count: int
+logger = logging.getLogger("buggy-service")
 
 
 @app.get("/crash")
 async def crash_endpoint(total: int = 100, count: int = 0):
-    """Endpoint that intentionally crashes with division by zero."""
     data = {"total": total, "count": count}
-    
+
     if not validate_input(data):
         raise HTTPException(status_code=400, detail="Invalid input")
-    
+
     result = process_data(data)
     return {"result": result}
 
@@ -30,9 +26,12 @@ async def health_check():
 
 @app.exception_handler(Exception)
 async def exception_handler(request: Request, exc: Exception):
-    """Return traceback for debugging."""
     tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    return Response(content=tb, status_code=500, media_type="text/plain")
+    logger.error("Unhandled exception:\n%s", tb)
+    return JSONResponse(
+        status_code=500,
+        content={"error": type(exc).__name__, "detail": str(exc), "traceback": tb}
+    )
 
 
 if __name__ == "__main__":
